@@ -3,6 +3,7 @@
 # (Hiroto, 2025/10/30) ver2.0: [Revise] Improved version with --tstart and --tend for operational use
 # (Hiroto, 2025/11/02) ver2.1: [Revise] Check whether the directories or files exist 
 # (Hiroto, 2025/11/06) ver2.2: [Revise] Add an --odir option and define a directory (odir) to save .npz
+# (Hiroto, 2025/12/15) ver2.3: [Revise] Add a function to automatically select a sutable calibration file
 
 ####  import necessary Modules ##########
 
@@ -63,6 +64,14 @@ def load_bin_files(idir):
 
     return files
 
+def parse_cal_time_astropy(fname):
+    """
+    cal_YYYYMMDD_HHMMSSZ.check → astropy Time (UTC)
+    """
+    base = os.path.basename(fname)
+    tstr = base.replace("cal_", "").replace(".check", "")
+    return Time.strptime(tstr, "%Y%m%d_%H%M%SZ", scale="utc")
+
 #Difine observatory/Array design and parameters
 
 nAnt = 16
@@ -107,6 +116,9 @@ nBin = 8   # chan binning
 
 bfreq = freq.reshape(-1,nBin).mean(axis=1)
 timeSamp = timeFrame * nSum # sec
+
+cal_dir = "/burstt14/disk12/2nd_cal"
+cal_files = glob(os.path.join(cal_dir, "cal_*.check"))
 
 # ============================================================
 # Command line options
@@ -196,7 +208,27 @@ for idx, row in df.iterrows():
     #cal2_dir = '/home/sdutta/fushan/cal_20250901_031906Z.check'  ####### defining delay calibration #####
     #cal2_dir = '/home/sdutta/fushan/cal_20250917_032613Z.check'  ####### defining delay calibration #####
     # cal2_dir = 'cal_20250917_032613Z.check'  ####### defining delay calibration #####
-    cal2_dir = 'cal_20251017_053050Z.check'  ####### defining delay calibration #####
+    # cal2_dir = 'cal_20251017_053050Z.check'  ####### defining delay calibration #####
+
+    # Automatically select a sutable calibration file
+    candidates = []
+    for f in cal_files:
+        try:
+            t_cal = parse_cal_time_astropy(f)
+            if t_cal <= dt_event:
+                candidates.append((t_cal, f))
+        except ValueError:
+            pass
+
+    if not candidates:
+        raise RuntimeError("No calibration files before this observation")
+
+    # 最も直近（過去側）
+    cal2_time, cal2_dir = max(candidates, key=lambda x: x[0].unix)
+
+    print(f"Selected calibration: {cal2_dir}")
+    print("Calibration time:", cal2_time.isot)
+    print("Event time:", dt_event.isot)
 
     #[sdutta@burstt11 calibration]$/data/kylin/241212_new_bf256/calibration/2nd_cal_2509171126/cal_20250917_032613Z.check
 
