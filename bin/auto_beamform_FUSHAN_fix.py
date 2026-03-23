@@ -4,7 +4,7 @@
 # (Hiroto, 2025/11/02) ver2.1: [Revise] Check whether the directories or files exist 
 # (Hiroto, 2025/11/06) ver2.2: [Revise] Add an --odir option and define a directory (odir) to save .npz
 # (Hiroto, 2025/12/15) ver2.3: [Revise] Add a function to automatically select a sutable calibration file
-# (Hiroto, 2026/01/20) ver2.4: [Debug] if (p2 > packMax):p2 = packMax
+# (Hiroto, 2025/12/29) ver3.0: [Modify] freq_ref=400MHz >> 300MHz | flim=[400,800] >> [300,700] | | [Debug] if (p2 > packMax):p2 = packMax
 
 ####  import necessary Modules ##########
 
@@ -84,9 +84,9 @@ nSubCh = nChan//nOrder
 BW = 400e6 # banwdith in Hz
 timeFrame = nChan/BW # seconds per frame
 
-flim = [400., 800.] # MHz
+flim = [300., 700.] # MHz
 freq = np.linspace(flim[0], flim[1], nChan, endpoint=False)
-freq_ref = 400. # bonsai trigger event time reference freq (MHz)
+freq_ref = 300. # bonsai trigger event time reference freq (MHz)
 
 sepX = 1.0 # antenna separation in X, meters
 sepY = 0.5 # in Y, meters
@@ -113,7 +113,7 @@ secWin = 0.03 # 0.020 # in sec
 
 # time and channel binning
 nSum = 400 # frame binning: 400-->1ms
-nBin = 1 #8   # chan binning
+nBin = 8   # chan binning
 
 bfreq = freq.reshape(-1,nBin).mean(axis=1)
 timeSamp = timeFrame * nSum # sec
@@ -591,13 +591,8 @@ for idx, row in df.iterrows():
     # snr_time = signal / noise
     # snr_time -= np.median(snr_time)
     #
-
-    # clipped = np.clip(norm_combined_dd_inten_stack[0:256,:], 0, 10) # 400-500MHz (nBin=1)
-    # clipped = np.clip(norm_combined_dd_inten_stack[0:256,:], 0, 100) # 400-500MHz (nBin=1), Strong CrabGRPs; SNR>100
-    clipped = np.clip(norm_combined_dd_inten_stack, 0, 10) # 400-800MHz
-    # clipped = np.clip(norm_combined_dd_inten_stack, 0, 100) # 400-800MHz, Strong CrabGRPs; SNR>100
-    
-    signal = np.mean(clipped, axis=0)
+    clipped = np.clip(norm_combined_dd_inten_stack, 0, 10)
+    signal = np.mean((clipped), axis=0)
     #noise = np.std((norm_combined_dd_inten_stack), axis=0)
     #noise = np.std(clipped)  # single scalar noise level
     noise = sigma_clip(signal).std()
@@ -623,10 +618,7 @@ for idx, row in df.iterrows():
     # # from scipy.ndimage import gaussian_filter1d
     # # snr_time = gaussian_filter1d(snr_time, sigma=2)
     ######
-
-    print("snr_time min/max:",
-        np.nanmin(snr_time),
-        np.nanmax(snr_time))    
+    
     
     # === Plotting with GridSpec (3 columns: [plot, plot, colorbar]) ===
     fig = plt.figure(figsize=(12, 10))
