@@ -7,6 +7,7 @@
 # (Hiroto, 2025/11/06) ver1.4: [Revise] Add an --odir option and define a directory (odir) to save .ddpack | Add fout = os.path.join(args.odir, fout) in make_ddpack_filenames | Add os.makedirs(odir, exist_ok=True)
 # (Hiroto, 2025/11/28) ver1.5: [Revise] Skip corrupted data
 # (Hiroto, 2025/12/29) ver2.0: [Modify] freq_ref=400MHz >> 300MHz | flim=[400,800] >> [300,700] | [Debug] if (p2 > packMax):p2 = packMax
+# (Hiroto, 2026/01/29) ver2.1: [Revise] p1 < 0 >> set to p1=0 | p2 < 0 >> skip this file
 
 ####  import necessary Modules ##########
 import sys, os, os.path, time, re
@@ -464,8 +465,16 @@ for idx, row in df.iterrows():
             nPack = nFrame * int(nRow / frame_per_pack)
             p2 = p1 + nPack
 
+            if (p1 < 0):                               # (Hiroto, 2026/01/29) v3.1
+                print('warning: negative p1', p1)      # (Hiroto, 2026/01/29) v3.1
+                p1 = 0
             if (p2 > packMax):
+                print('warning: p2 exceeds eof', p2)
                 p2 = packMax
+            if (p2 < 0):                               # (Hiroto, 2026/01/29) v3.1
+                print('[SKIP] error: negative p2', p2) # (Hiroto, 2026/01/29) v3.1
+                print('... skip this file')            # (Hiroto, 2026/01/29) v3.1
+                continue                               # (Hiroto, 2026/01/29) v3.1
     
             print(f'File {i}: packMax={packMax}, ep_begin={ep_begin:.4f}, ep_end={ep_end:.4f}')
             print(f'File {i}: ch_l={ch_l}, ch_h={ch_h}, ep_l={ep_l}, ep_h={ep_h}, secWin={secWin}, frame_per_pack={frame_per_pack}, timeFrame={timeFrame}, nRow={nRow}')

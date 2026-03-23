@@ -4,7 +4,9 @@
 # (Hiroto, 2025/11/02) ver2.1: [Revise] Check whether the directories or files exist 
 # (Hiroto, 2025/11/06) ver2.2: [Revise] Add an --odir option and define a directory (odir) to save .npz
 # (Hiroto, 2025/12/15) ver2.3: [Revise] Add a function to automatically select a sutable calibration file
-# (Hiroto, 2025/12/29) ver3.0: [Modify] freq_ref=400MHz >> 300MHz | flim=[400,800] >> [300,700] | | [Debug] if (p2 > packMax):p2 = packMax
+# (Hiroto, 2025/12/29) ver3.0: [Modify] freq_ref=400MHz >> 300MHz | flim=[400,800] >> [300,700] | [Debug] if (p2 > packMax):p2 = packMax
+# (Hiroto, 2026/01/29) ver3.1: [Revise] p1 < 0 >> set to p1=0 | p2 < 0 >> skip this file | lamb0, freq_bsep=400 now (originally using freq_ref=300)
+#                              [Debug]  The presence of NaN values corrupted the SNR calculation results: np.mean() & np.std() >> np.nanmean() & np.nanstd()
 
 ####  import necessary Modules ##########
 
@@ -87,6 +89,7 @@ timeFrame = nChan/BW # seconds per frame
 flim = [300., 700.] # MHz
 freq = np.linspace(flim[0], flim[1], nChan, endpoint=False)
 freq_ref = 300. # bonsai trigger event time reference freq (MHz)
+freq_bsep = 400. # a reference freq used to compute beam spacing
 
 sepX = 1.0 # antenna separation in X, meters
 sepY = 0.5 # in Y, meters
@@ -94,7 +97,7 @@ pos1 = np.arange(nAnt)*sepX
 pos2 = np.arange(nRow)*sepY
 
 lamb = 2.998e8 / (freq * 1e6) # wavelength in meters
-lamb0 = 2.998e8/(freq_ref*1e6) # at lowest freq
+lamb0 = 2.998e8/(freq_bsep*1e6) # at lowest freq
 
 byteMeta = 64
 bytePack = 8256
@@ -456,8 +459,16 @@ for idx, row in df.iterrows():
             nPack = nFrame * int(nRow / frame_per_pack)
             p2 = p1 + nPack
 
+            if (p1 < 0):                               # (Hiroto, 2026/01/29) v3.1
+                print('warning: negative p1', p1)      # (Hiroto, 2026/01/29) v3.1
+                p1 = 0
             if (p2 > packMax):
+                print('warning: p2 exceeds eof', p2)
                 p2 = packMax
+            if (p2 < 0):                               # (Hiroto, 2026/01/29) v3.1
+                print('[SKIP] error: negative p2', p2) # (Hiroto, 2026/01/29) v3.1
+                print('... skip this file')            # (Hiroto, 2026/01/29) v3.1
+                continue                               # (Hiroto, 2026/01/29) v3.1
     
             print(f'File {i}: packMax={packMax}, ep_begin={ep_begin:.4f}, ep_end={ep_end:.4f}')
             print(f'File {i}: ch_l={ch_l}, ch_h={ch_h}, ep_l={ep_l}, ep_h={ep_h}, secWin={secWin}, frame_per_pack={frame_per_pack}, timeFrame={timeFrame}, nRow={nRow}')
@@ -566,8 +577,10 @@ for idx, row in df.iterrows():
     
     # === Data Processing ===
     combined_dd_inten_stack = np.vstack(combined_dd_inten)
-    std = np.std(combined_dd_inten_stack)
-    mean = np.mean(combined_dd_inten_stack)
+    mean = np.nanmean(combined_dd_inten_stack, axis=1, keepdims=True)
+    std  = np.nanstd (combined_dd_inten_stack, axis=1, keepdims=True)
+    std[~np.isfinite(std)] = 1.0
+    std[std == 0] = 1.0
     norm_combined_dd_inten_stack = (combined_dd_inten_stack - mean) / std
     clipped_inten = np.clip(norm_combined_dd_inten_stack, -4, 4)
     
@@ -591,13 +604,20 @@ for idx, row in df.iterrows():
     # snr_time = signal / noise
     # snr_time -= np.median(snr_time)
     #
-    clipped = np.clip(norm_combined_dd_inten_stack, 0, 10)
-    signal = np.mean((clipped), axis=0)
-    #noise = np.std((norm_combined_dd_inten_stack), axis=0)
-    #noise = np.std(clipped)  # single scalar noise level
+
+    clipped = np.clip(norm_combined_dd_inten_stack[32:64,:], 0, 10) # 400-500MHz, nBin=8 >> compare with other stations
+    # clipped = np.clip(norm_combined_dd_inten_stack[256:512,:], 0, 10) # 400-500MHz, nBin=1 >> compare with other stations
+    # clipped = np.clip(norm_combined_dd_inten_stack, 0, 10) # 300-700MHz, standared
+    
+    signal = np.nanmean(clipped, axis=0)
+    signal = np.nan_to_num(signal, nan=0.0)
     noise = sigma_clip(signal).std()
+
+    if not np.isfinite(noise) or noise == 0:
+        noise = 1.0
     snr_time = signal / noise
-    snr_time -= np.median(snr_time)
+    snr_time -= np.nanmedian(snr_time)
+
     #####
     # # Center each time bin by subtracting mean across frequency:
     # centered = norm_combined_dd_inten_stack - norm_combined_dd_inten_stack.mean(axis=0, keepdims=True)
@@ -618,7 +638,14 @@ for idx, row in df.iterrows():
     # # from scipy.ndimage import gaussian_filter1d
     # # snr_time = gaussian_filter1d(snr_time, sigma=2)
     ######
+
+    print("snr_time min/max:",
+        np.nanmin(snr_time),
+        np.nanmax(snr_time))
     
+    # --- Final defense ---
+    clipped_inten = np.nan_to_num(clipped_inten, nan=0.0)
+    snr_time = np.nan_to_num(snr_time, nan=0.0)
     
     # === Plotting with GridSpec (3 columns: [plot, plot, colorbar]) ===
     fig = plt.figure(figsize=(12, 10))
