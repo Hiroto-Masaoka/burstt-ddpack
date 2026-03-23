@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
-# (Hiroto, 2025/10/30) ver2.0: Improved version with argparse, structured logging, --shift-max, --tstart, --tend and dry-run/debug support for operational use.
+# (Hiroto, 2025/10/30) ver2.0: [Revise] Improved version with argparse, structured logging, --shift-max, --tstart, --tend and dry-run/debug support for operational use.
+# (Hiroto, 2025/12/11) ver2.1: [Revise] Add an --src option to select a specific astronomical sources (e.g. b0329, crab)
 
 import os
 import sys
@@ -22,7 +23,7 @@ def print_log(level: str, msg: str):
 # ============================================================
 parser = argparse.ArgumentParser(
     prog="link_event_files.py",
-    usage="%(prog)s <input_csv> [--search-dir PATH] [--tstart TSTART] [--tend TEND] [--shift-max N] [--debug] [--dry-run]",
+    usage="%(prog)s <input_csv> [--search-dir PATH] [--tstart TSTART] [--tend TEND] [--shift-max N] [--src TARGET] [--debug] [--dry-run]",
     description=(
         "Link event-related raw data files based on EventID timestamps.\n"
         "For each event, this script searches for matching data files "
@@ -32,7 +33,7 @@ parser = argparse.ArgumentParser(
         "Example:\n"
         "  python link_event_files.py events.csv\n"
         "  python link_event_files.py events.csv --tstart '2025-10-01 00:00:00' --tend '2025-10-01 01:00:00'\n"
-        "  python link_event_files.py events.csv --search-dir /burstt01/disk2/data --shift-max 10 --dry-run\n"
+        "  python link_event_files.py events.csv --search-dir /burstt01/disk2/data --shift-max 10 --src 'b0329' --dry-run\n"
     ),
     formatter_class=argparse.RawTextHelpFormatter
 )
@@ -45,6 +46,8 @@ parser.add_argument("--tend", type=str, default=None,
                     help="End time in format 'YYYY-MM-DD HH:MM:SS' (UTC)")
 parser.add_argument("--shift-max", type=int, default=5,
                     help="Maximum seconds to shift when searching (default: 5).")
+parser.add_argument("--src", type=str, default=None,
+                    help="Specify an astronomical source")
 parser.add_argument("--debug", action="store_true",
                     help="Enable verbose debug output for troubleshooting.")
 parser.add_argument("--dry-run", action="store_true",
@@ -112,6 +115,19 @@ elif args.tstart or args.tend:
     print("[WARN] Please specify both --tstart and --tend to enable time filtering.")
 else:
     print("[INFO] No time range specified — processing all events.")
+
+if args.src is not None:
+    src = args.src.lower()
+    if src in ['b0329', 'B0329', 'b0329+54', 'B0329+54', 'PSR_B0329+54', 'PSR B0329+54']:
+        src_name1 = 'B0329+54'
+        src_name2 = 'PSR B0329+54'
+    elif src in ['crab', 'CrabGRP', 'b0531+21', 'B0531+21', 'PSR_B0531+21', 'PSR B0531+21']:
+        src_name1 = 'B0531+21'
+        src_name2 = 'Crab (PSR B0531+21)'
+    else:
+        src_name1 = src
+        src_name2 = src
+    df = df[df["Name_src"].str.lower().isin([src_name1.lower(), src_name2.lower()])]
 
 if df.empty:
     print("[WARN] No events found after filtering.")

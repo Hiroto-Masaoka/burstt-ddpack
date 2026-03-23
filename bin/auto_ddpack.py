@@ -6,6 +6,7 @@
 # (Hiroto, 2025/11/03) ver1.3: Update auto_beamform_FUSHAN_fix_ddpack*ver2.1.py >> ver2.3
 # (Hiroto, 2025/11/06) ver1.4: Add --odir_ddpack and odir_npz options| Update ddpacktrigger_ver1.3.py >> ver1.4, auto_beamform_FUSHAN_fix_ver2.1.py >> ver2.2 |.  auto_beamform_FUSHAN_fix_ddpack_ver2.3.py >> ver2.4
 # (Hiroto, 2025/11/28) ver1.5: [Revise] Update ddpack*ver1.4.py >> ver1.5
+# (Hiroto, 2025/12/11) ver1.6: [Revise] Update link*ver2.0.py >> ver2.1 | Add --src option to specify a source
 
 import subprocess
 import argparse
@@ -17,17 +18,17 @@ from datetime import datetime
 # ============================================================
 parser = argparse.ArgumentParser(
     prog="auto_pipeline.py",
-    usage="%(prog)s csvfile FILE --tstart TSTART --tend TEND [--odir_ddpack] [--odir_npz] [--station STATION] [--dry-run]",
+    usage="%(prog)s csvfile FILE --tstart TSTART --tend TEND [--odir_ddpack] [--odir_npz] [--station STATION] [--src TARGET] [--dry-run]",
     description=(
         "Run the full event processing pipeline in sequence:\n"
-        "1. link_event_filesFUSHAN.py\n"
-        "2. ddpacktrigger.py\n"
-        "3. auto_beamform_FUSHAN_fix.py\n"
-        "4. auto_beamform_FUSHAN_fix_ddpack.py\n"
+        "1. link_event_filesFUSHAN_ver2.1.py\n"
+        "2. ddpacktrigger_ver1.5.py\n"
+        "3. auto_beamform_FUSHAN_fix_ver2.2.py\n"
+        "4. auto_beamform_FUSHAN_fix_ddpack_ver2.4.py\n"
     ),
     epilog=("Example:\n"
             "  python auto_pipeline.py triggers.csv "
-            "--tstart '2025-10-16 00:00:00' --tend '2025-10-29 00:00:00' --station Fushan"),
+            "--tstart '2025-10-16 00:00:00' --tend '2025-10-29 00:00:00' --station Fushan --src 'b0329'"),
     formatter_class=argparse.RawTextHelpFormatter
 )
 parser.add_argument("csvfile", help="CSV file containing event list")
@@ -36,6 +37,7 @@ parser.add_argument("--tend", required=True, help="End time in UTC (format: 'YYY
 parser.add_argument("--odir_ddpack", type=str, default=".", help="Output directory for .ddpack")
 parser.add_argument("--odir_npz", type=str, default=".", help="Output directory for .npz")
 parser.add_argument("--station", default="Fushan", help="Station name (default: Fushan)")
+parser.add_argument("--src", type=str, default=None, help="Select a specific astronomical source")
 parser.add_argument("--skip-ddpack", action="store_true", help="Skip ddpack process")
 parser.add_argument("--dry-run", action="store_true", help="Show commands without executing")
 
@@ -51,6 +53,8 @@ if not args.csvfile:
     print("[ERROR] Missing required argument: csvfile\n")
     parser.print_usage(sys.stderr)
     sys.exit(1)
+
+selected_csvfile = args.csvfile.replace(".csv", "_linked_files.csv")
 # ============================================================
 # Helper: execute command with logging
 # ============================================================
@@ -81,22 +85,22 @@ def run_command(cmd_list, dry_run=False):
 # ============================================================
 pipeline = [
     [
-        "python", "link_event_filesFUSHAN_ver2.0.py",
+        "python", "link_event_filesFUSHAN_ver2.1.py",
         args.csvfile, "--tstart", args.tstart, "--tend", args.tend
-    ],
+    ]+ (["--src", args.src] if args.src is not None else []),
     [
         "python", "ddpacktrigger_ver1.5.py",
-        args.csvfile, "--tstart", args.tstart, "--tend", args.tend,
+        selected_csvfile, "--tstart", args.tstart, "--tend", args.tend,
         "--odir", args.odir_ddpack, "--station", args.station
     ],
     [
         "python", "auto_beamform_FUSHAN_fix_ver2.2.py",
-        args.csvfile, "--tstart", args.tstart, "--tend", args.tend,
+        selected_csvfile, "--tstart", args.tstart, "--tend", args.tend,
         "--odir", args.odir_npz
     ],
     [
         "python", "auto_beamform_FUSHAN_fix_ddpack_ver2.4.py",
-        args.csvfile, "--tstart", args.tstart, "--tend", args.tend,
+        selected_csvfile, "--tstart", args.tstart, "--tend", args.tend,
         "--indir", args.odir_ddpack, "--odir", args.odir_npz
     ]
 ]
