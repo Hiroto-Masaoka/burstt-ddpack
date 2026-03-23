@@ -6,7 +6,7 @@
 # (Hiroto, 2025/10/30) ver1.3: [Revise] Improved version with --tstart and --tend for operational use
 # (Hiroto, 2025/11/06) ver1.4: [Revise] Add an --odir option and define a directory (odir) to save .ddpack | Add fout = os.path.join(args.odir, fout) in make_ddpack_filenames | Add os.makedirs(odir, exist_ok=True)
 # (Hiroto, 2025/11/28) ver1.5: [Revise] Skip corrupted data
-# (Hiroto, 2026/01/20) ver1.6: [Debug] if (p2 > packMax):p2 = packMax
+# (Hiroto, 2025/12/29) ver2.0: [Modify] freq_ref=400MHz >> 300MHz | flim=[400,800] >> [300,700] | [Debug] if (p2 > packMax):p2 = packMax
 
 ####  import necessary Modules ##########
 import sys, os, os.path, time, re
@@ -41,7 +41,7 @@ def get_station_params(station: str):
     c = 2.998e8
     byteMeta = 64
     bytePack = 8256
-    freq_ref = 400.0  # MHz
+    freq_ref = 300.0  # MHz
     BW = 400e6  # Hz
 
     # Default: Fushan
@@ -50,7 +50,7 @@ def get_station_params(station: str):
         "nRow": 16,
         "nChan": 1024,
         "nOrder": 8,
-        "flim": [400., 800.],
+        "flim": [300., 700.],
         "frame_per_pack": 4,
         "byteMeta": byteMeta,
         "bytePack": bytePack,
