@@ -1,2 +1,2 @@
 # burstt-ddpack
-BURSTT Analysis software tool-set: This is mainly for subtracting a pulse data with a given time window (i.e., pulse ± 3 ms) from a triggered baseband data, in order to release the HDD storage. You can also analyze triggered baseband data based on trigger information from BURSTT Web monitor.
+BURSTT Analysis Toolset. This software is primarily designed to subtract pulse data within a specified time window (e.g., pulse ± 3 ms) from triggered baseband data, helping reduce HDD storage usage. It also provides tools to analyze triggered baseband data using trigger information from the BURSTT web monitor.
