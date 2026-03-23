@@ -2,6 +2,7 @@
 
 # (Hiroto, 2025/10/30) ver2.0: [Revise] Improved version with argparse, structured logging, --shift-max, --tstart, --tend and dry-run/debug support for operational use.
 # (Hiroto, 2025/12/11) ver2.1: [Revise] Add an --src option to select a specific astronomical sources (e.g. b0329, crab)
+# (Hiroto, 2026/01/20) ver2.2: [Debug] Adopt for both "%Y%m%d_%H%M%S.%fZ" and "%Y%m%d_%H%M%SZ" | search_dirs = sorted(glob("/burstt*/disk*/data")) >> "/burstt*/disk*/data*"
 
 import os
 import sys
@@ -39,7 +40,7 @@ parser = argparse.ArgumentParser(
 )
 parser.add_argument("input_csv", help="CSV file containing the event list (must include 'EventID').")
 parser.add_argument("--search-dir", type=str, default=None,
-                    help="Root directory to search (default: auto-detect /burstt*/disk*/data).")
+                    help="Root directory to search (default: auto-detect /burstt*/disk*/data*).")
 parser.add_argument("--tstart", type=str, default=None,
                     help="Start time in format 'YYYY-MM-DD HH:MM:SS' (UTC)")
 parser.add_argument("--tend", type=str, default=None,
@@ -77,7 +78,8 @@ output_file = f"{base}_linked_files{ext}"
 if args.search_dir:
     search_dirs = [args.search_dir]
 else:
-    search_dirs = sorted(glob("/burstt*/disk*/data"))
+    search_dirs = sorted(glob("/burstt*/disk*/data*"))
+    # search_dirs = sorted(glob("/burstt*/disk*/data"))
 
 if not search_dirs:
     print_log("error", "No search directories found. Use --search-dir to specify.")
@@ -143,11 +145,18 @@ cache_seen = set()  # avoid duplicate links across shifts
 
 for idx, row in df.iterrows():
     event_id = str(row["EventID"]).strip()
-    try:
-        event_dt = datetime.strptime(event_id, "%Y%m%d_%H%M%SZ")
-    except ValueError:
+
+    for fmt in ("%Y%m%d_%H%M%S.%fZ", "%Y%m%d_%H%M%SZ"):
+        try:
+            event_dt = datetime.strptime(event_id, fmt)
+            break
+        except ValueError:
+            event_dt = None
+
+    if event_dt is None:
         print_log("warn", f"Invalid EventID format: {event_id}, skipping.")
         continue
+
 
     print_log("info", f"Searching for event {event_id}")
     matched_files = []

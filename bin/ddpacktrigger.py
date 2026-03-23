@@ -6,6 +6,7 @@
 # (Hiroto, 2025/10/30) ver1.3: [Revise] Improved version with --tstart and --tend for operational use
 # (Hiroto, 2025/11/06) ver1.4: [Revise] Add an --odir option and define a directory (odir) to save .ddpack | Add fout = os.path.join(args.odir, fout) in make_ddpack_filenames | Add os.makedirs(odir, exist_ok=True)
 # (Hiroto, 2025/11/28) ver1.5: [Revise] Skip corrupted data
+# (Hiroto, 2026/01/20) ver1.6: [Debug] if (p2 > packMax):p2 = packMax
 
 ####  import necessary Modules ##########
 import sys, os, os.path, time, re
@@ -462,6 +463,9 @@ for idx, row in df.iterrows():
             nFrame = int(nPack / nRow * frame_per_pack)
             nPack = nFrame * int(nRow / frame_per_pack)
             p2 = p1 + nPack
+
+            if (p2 > packMax):
+                p2 = packMax
     
             print(f'File {i}: packMax={packMax}, ep_begin={ep_begin:.4f}, ep_end={ep_end:.4f}')
             print(f'File {i}: ch_l={ch_l}, ch_h={ch_h}, ep_l={ep_l}, ep_h={ep_h}, secWin={secWin}, frame_per_pack={frame_per_pack}, timeFrame={timeFrame}, nRow={nRow}')

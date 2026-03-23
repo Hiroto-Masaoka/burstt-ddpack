@@ -4,6 +4,7 @@
 # (Hiroto, 2025/11/02) ver2.1: [Revise] Check whether the directories or files exist 
 # (Hiroto, 2025/11/06) ver2.2: [Revise] Add an --odir option and define a directory (odir) to save .npz
 # (Hiroto, 2025/12/15) ver2.3: [Revise] Add a function to automatically select a sutable calibration file
+# (Hiroto, 2026/01/20) ver2.4: [Debug] if (p2 > packMax):p2 = packMax
 
 ####  import necessary Modules ##########
 
@@ -112,7 +113,7 @@ secWin = 0.03 # 0.020 # in sec
 
 # time and channel binning
 nSum = 400 # frame binning: 400-->1ms
-nBin = 8   # chan binning
+nBin = 1 #8   # chan binning
 
 bfreq = freq.reshape(-1,nBin).mean(axis=1)
 timeSamp = timeFrame * nSum # sec
@@ -454,6 +455,9 @@ for idx, row in df.iterrows():
             nFrame = int(nPack / nRow * frame_per_pack)
             nPack = nFrame * int(nRow / frame_per_pack)
             p2 = p1 + nPack
+
+            if (p2 > packMax):
+                p2 = packMax
     
             print(f'File {i}: packMax={packMax}, ep_begin={ep_begin:.4f}, ep_end={ep_end:.4f}')
             print(f'File {i}: ch_l={ch_l}, ch_h={ch_h}, ep_l={ep_l}, ep_h={ep_h}, secWin={secWin}, frame_per_pack={frame_per_pack}, timeFrame={timeFrame}, nRow={nRow}')
@@ -587,8 +591,13 @@ for idx, row in df.iterrows():
     # snr_time = signal / noise
     # snr_time -= np.median(snr_time)
     #
-    clipped = np.clip(norm_combined_dd_inten_stack, 0, 10)
-    signal = np.mean((clipped), axis=0)
+
+    # clipped = np.clip(norm_combined_dd_inten_stack[0:256,:], 0, 10) # 400-500MHz (nBin=1)
+    # clipped = np.clip(norm_combined_dd_inten_stack[0:256,:], 0, 100) # 400-500MHz (nBin=1), Strong CrabGRPs; SNR>100
+    clipped = np.clip(norm_combined_dd_inten_stack, 0, 10) # 400-800MHz
+    # clipped = np.clip(norm_combined_dd_inten_stack, 0, 100) # 400-800MHz, Strong CrabGRPs; SNR>100
+    
+    signal = np.mean(clipped, axis=0)
     #noise = np.std((norm_combined_dd_inten_stack), axis=0)
     #noise = np.std(clipped)  # single scalar noise level
     noise = sigma_clip(signal).std()
@@ -614,7 +623,10 @@ for idx, row in df.iterrows():
     # # from scipy.ndimage import gaussian_filter1d
     # # snr_time = gaussian_filter1d(snr_time, sigma=2)
     ######
-    
+
+    print("snr_time min/max:",
+        np.nanmin(snr_time),
+        np.nanmax(snr_time))    
     
     # === Plotting with GridSpec (3 columns: [plot, plot, colorbar]) ===
     fig = plt.figure(figsize=(12, 10))

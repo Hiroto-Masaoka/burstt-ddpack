@@ -5,6 +5,7 @@
 # (Hiroto, 2025/11/03) ver2.2: [Debug] Temoral debug p1=int((ep_h-secWin-ep_begin)/(frame_per_pack*timeFrame)-1)*nRow >> p1=0
 # (Hiroto, 2025/11/03) ver2.3: [Revise] Enforce lower limit: amp=np.clip(amp, 1e-12, None) | Add constrained_layout=True and delete plt.tight_layout()
 # (Hiroto, 2025/11/06) ver2.4: [Revise] Add an --odir and --indir option for .npz and .ddpack | Revise .npz >> .ddpack.npz | idir= ev_name >> os.path.join(args.odir, ev_name)
+# (Hiroto, 2026/01/20) ver2.6: [Debug] if (p2 > packMax):p2 = packMax
 
 ####  import necessary Modules ##########
 
@@ -65,6 +66,14 @@ def load_ddpack_files(idir):
 
     return files
 
+def parse_cal_time_astropy(fname):
+    """
+    cal_YYYYMMDD_HHMMSSZ.check → astropy Time (UTC)
+    """
+    base = os.path.basename(fname)
+    tstr = base.replace("cal_", "").replace(".check", "")
+    return Time.strptime(tstr, "%Y%m%d_%H%M%SZ", scale="utc")
+
 #Difine observatory/Array design and parameters
 
 nAnt = 16
@@ -109,6 +118,9 @@ nBin = 8   # chan binning
 
 bfreq = freq.reshape(-1,nBin).mean(axis=1)
 timeSamp = timeFrame * nSum # sec
+
+cal_dir = "/burstt14/disk12/2nd_cal"
+cal_files = glob(os.path.join(cal_dir, "cal_*.check"))
 
 # ============================================================
 # Command line options
@@ -201,7 +213,27 @@ for idx, row in df.iterrows():
     #cal2_dir = '/home/sdutta/fushan/cal_20250901_031906Z.check'  ####### defining delay calibration #####
     #cal2_dir = '/home/sdutta/fushan/cal_20250917_032613Z.check'  ####### defining delay calibration #####
     # cal2_dir = 'cal_20250917_032613Z.check'  ####### defining delay calibration #####
-    cal2_dir = 'cal_20251017_053050Z.check'  ####### defining delay calibration #####
+    # cal2_dir = 'cal_20251017_053050Z.check'  ####### defining delay calibration #####
+
+    # Automatically select a sutable calibration file
+    candidates = []
+    for f in cal_files:
+        try:
+            t_cal = parse_cal_time_astropy(f)
+            if t_cal <= dt_event:
+                candidates.append((t_cal, f))
+        except ValueError:
+            pass
+
+    if not candidates:
+        raise RuntimeError("No calibration files before this observation")
+
+    # 最も直近（過去側）
+    cal2_time, cal2_dir = max(candidates, key=lambda x: x[0].unix)
+
+    print(f"Selected calibration: {cal2_dir}")
+    print("Calibration time:", cal2_time.isot)
+    print("Event time:", dt_event.isot)
 
     #[sdutta@burstt11 calibration]$/data/kylin/241212_new_bf256/calibration/2nd_cal_2509171126/cal_20250917_032613Z.check
 
@@ -436,6 +468,9 @@ for idx, row in df.iterrows():
             nFrame = int(nPack / nRow * frame_per_pack)
             nPack = nFrame * int(nRow / frame_per_pack)
             p2 = p1 + nPack
+
+            if (p2 > packMax):
+                p2 = packMax
     
             print(f'File {i}: packMax={packMax}, ep_begin={ep_begin:.4f}, ep_end={ep_end:.4f}')
             print(f'File {i}: ch_l={ch_l}, ch_h={ch_h}, ep_l={ep_l}, ep_h={ep_h}, secWin={secWin}, frame_per_pack={frame_per_pack}, timeFrame={timeFrame}, nRow={nRow}')
@@ -565,7 +600,12 @@ for idx, row in df.iterrows():
     # snr_time = signal / noise
     # snr_time -= np.median(snr_time)
     #
-    clipped = np.clip(norm_combined_dd_inten_stack, 0, 10)
+
+    # clipped = np.clip(norm_combined_dd_inten_stack[0:256,:], 0, 10) # 400-500MHz (nBin=1)
+    # clipped = np.clip(norm_combined_dd_inten_stack[0:256,:], 0, 100) # 400-500MHz (nBin=1), Strong CrabGRPs; SNR>100
+    clipped = np.clip(norm_combined_dd_inten_stack, 0, 10) # 400-800MHz
+    # clipped = np.clip(norm_combined_dd_inten_stack, 0, 100) # 400-800MHz, Strong CrabGRPs; SNR>100
+
     signal = np.mean((clipped), axis=0)
     #noise = np.std((norm_combined_dd_inten_stack), axis=0)
     #noise = np.std(clipped)  # single scalar noise level
@@ -592,7 +632,10 @@ for idx, row in df.iterrows():
     # # from scipy.ndimage import gaussian_filter1d
     # # snr_time = gaussian_filter1d(snr_time, sigma=2)
     ######
-    
+
+    print("snr_time min/max:",
+        np.nanmin(snr_time),
+        np.nanmax(snr_time))    
     
     # === Plotting with GridSpec (3 columns: [plot, plot, colorbar]) ===
     fig = plt.figure(figsize=(12, 10), constrained_layout=True)
