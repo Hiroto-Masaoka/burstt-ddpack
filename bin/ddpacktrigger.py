@@ -4,6 +4,7 @@
 # (Hiroto, 2025/10/21) ver1.1: [Debug] loadPackedBatchMmap(); shape=(nPack,) >> (bpp*nPack,)
 # (Hiroto, 2025/10/22) ver1.2: [Revise] Add station for unique parameters 
 # (Hiroto, 2025/10/30) ver1.3: [Revise] Improved version with --tstart and --tend for operational use
+# (Hiroto, 2025/11/06) ver2.4: [Revise] Add an --odir option and define a directory (odir) to save .ddpack | Add fout = os.path.join(args.odir, fout) in make_ddpack_filenames | Add os.makedirs(odir, exist_ok=True)
 
 ####  import necessary Modules ##########
 import sys, os, os.path, time, re
@@ -200,7 +201,8 @@ def get_sorted_bin_files(idir: str):
     return files
 
 
-def make_ddpack_filenames(files):
+## (Hiroto, 2025/11/06) ver1.4 : Get the data path without .bin
+def make_ddpack_filenames(odir, files):
     '''
     Generate output filenames by inserting "_ddpack" before ".bin".
 
@@ -212,11 +214,47 @@ def make_ddpack_filenames(files):
     '''
     fouts = []
     for f in files:
-        base, ext = os.path.splitext(f)
-        # fout = f"{base}_ddpack{ext}"
         fout = f"{f}.ddpack"
+        fout = os.path.join(odir, fout)
         fouts.append(fout)
     return fouts
+
+# # (Hiroto, 2025/11/01) ver1.0 : Get the data path without .bin
+# def make_ddpack_filenames(files):
+#     '''
+#     Generate output filenames by inserting "_ddpack" before ".bin".
+
+#     input:
+#         files: list of .bin file paths
+
+#     output:
+#         fouts: list of output file paths with "_ddpack" added
+#     '''
+#     fouts = []
+#     for f in files:
+#         fout = f"{f}.ddpack"
+#         fouts.append(fout)
+#     return fouts
+
+## (Hiroto, 2025/11/06) ver1.4 : Get the data file name without path and .bin
+# def make_ddpack_filenames(files):
+#     '''
+#     Generate output filenames by inserting "_ddpack" before ".bin".
+
+#     input:
+#         files: list of .bin file paths
+
+#     output:
+#         fouts: list of output file name with "_ddpack" added
+#     '''
+#     fouts = []
+#     for f in files:
+#         base, ext = os.path.splitext(f)
+#         fname = os.path.basename(base)
+#         # fout = f"{base}_ddpack{ext}"
+#         fout = f"{fname}.ddpack"
+#         fouts.append(fout)
+#     return fouts
 
 
 def print_file_pairs(files, fouts):
@@ -249,6 +287,8 @@ parser.add_argument("--tend", type=str, default=None,
                     help="End time in format 'YYYY-MM-DD HH:MM:SS' (UTC)")
 parser.add_argument("--station", type=str, default="Fushan",
                     help="Specify station name to filter events (e.g., BURSTT11)")
+parser.add_argument("--odir", type=str, default=".",
+                    help="Output directory for .ddpack")
 parser.add_argument("--dry-run", action="store_true",
                     help="Show which events would be processed without executing any file operation")
 
@@ -363,7 +403,7 @@ for idx, row in df.iterrows():
 
 ############
     files   = get_sorted_bin_files(idir)
-    ddfiles = make_ddpack_filenames(files)
+    ddfiles = make_ddpack_filenames(args.odir, files)
     print_file_pairs(files, ddfiles) # print out for check
 
     ###### Simulated Pulse ########
@@ -451,6 +491,9 @@ for idx, row in df.iterrows():
             buf = np.concatenate([mt, packs])
 
         fout = ddfiles[i]
+        # fout = os.path.join(args.odir, fout)
+        odir = os.path.dirname(fout)
+        os.makedirs(odir, exist_ok=True)
         try:
             SaveBinaryFastMmap(fout, memoryview(buf), overwrite=False)
             print(f"Output: {fout}")

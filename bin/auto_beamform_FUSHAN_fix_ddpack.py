@@ -4,6 +4,7 @@
 # (Hiroto, 2025/11/02) ver2.1: [Revise] Check whether the directories or files exist
 # (Hiroto, 2025/11/03) ver2.2: [Debug] Temoral debug p1=int((ep_h-secWin-ep_begin)/(frame_per_pack*timeFrame)-1)*nRow >> p1=0
 # (Hiroto, 2025/11/03) ver2.3: [Revise] Enforce lower limit: amp=np.clip(amp, 1e-12, None) | Add constrained_layout=True and delete plt.tight_layout()
+# (Hiroto, 2025/11/06) ver2.4: [Revise] Add an --odir and --indir option for .npz and .ddpack | Revise .npz >> .ddpack.npz | idir= ev_name >> os.path.join(args.odir, ev_name)
 
 ####  import necessary Modules ##########
 
@@ -124,6 +125,10 @@ parser.add_argument("--tstart", type=str, default=None,
                     help="Start time in format 'YYYY-MM-DDTHH:MM:SS' (UTC)")
 parser.add_argument("--tend", type=str, default=None,
                     help="End time in format 'YYYY-MM-DDTHH:MM:SS' (UTC)")
+parser.add_argument("--indir", type=str, default=".",
+                    help="Input directory for .ddpack")
+parser.add_argument("--odir", type=str, default=".",
+                    help="Output directory for .npz")
 # parser.add_argument("--station", type=str, default="Fushan",
 #                     help="Specify station name to filter events (e.g., BURSTT11)")
 
@@ -181,7 +186,8 @@ print(f"[INFO] {len(df)} events within the specified range will be processed.\n"
 
 for idx, row in df.iterrows():
     ev_name = row['EventID']
-    idir= ev_name
+    # idir= ev_name
+    idir= os.path.join(args.indir, ev_name)
     dt_event = Time(row['Timestamp'], format='datetime', scale='utc')
     ep_event = dt_event.to_value('unix')
     DM = row['DM']
@@ -194,7 +200,8 @@ for idx, row in df.iterrows():
     #cal2_dir = '/home/sdutta/fushan/cal_20250820_033210Z.check'  ####### defining delay calibration #####
     #cal2_dir = '/home/sdutta/fushan/cal_20250901_031906Z.check'  ####### defining delay calibration #####
     #cal2_dir = '/home/sdutta/fushan/cal_20250917_032613Z.check'  ####### defining delay calibration #####
-    cal2_dir = 'cal_20250917_032613Z.check'  ####### defining delay calibration #####
+    # cal2_dir = 'cal_20250917_032613Z.check'  ####### defining delay calibration #####
+    cal2_dir = 'cal_20251017_053050Z.check'  ####### defining delay calibration #####
 
     #[sdutta@burstt11 calibration]$/data/kylin/241212_new_bf256/calibration/2nd_cal_2509171126/cal_20250917_032613Z.check
 
@@ -526,7 +533,8 @@ for idx, row in df.iterrows():
     # === save dedispersed baseband ===
     ep0 = ep_event - secWin # begin epoch of the dedispersed spec, at 400MHz
     dd_time = np.arange(pix_win)*timeFrame # time offset of each frame
-    out_name = 'baseband_beamform_dedisperse_%s.npz'%(ev_name,)
+    # out_name = 'baseband_beamform_dedisperse_%s.ddpack.npz'%(ev_name,)
+    out_name = '%s/baseband_beamform_dedisperse_%s.ddpack.npz'%(args.odir, ev_name)
     np.savez(out_name, freq=freq, ep0=ep0, dd_time=dd_time, dd_spec=dd_spec, ep_event=ep_event, DM=DM, beamid_x=beamid_x, beamid_y=beamid_y)
     
     

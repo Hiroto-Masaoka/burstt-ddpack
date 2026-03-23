@@ -4,6 +4,7 @@
 # (Hiroto, 2025/10/31) ver1.1: Add --skip-ddpack option that allows you to analyze triggered data without ddpack
 # (Hiroto, 2025/11/02) ver1.2: Update auto_beamform_FUSHAN_fix*ver2.0.py >> ver2.1
 # (Hiroto, 2025/11/03) ver1.3: Update auto_beamform_FUSHAN_fix_ddpack*ver2.1.py >> ver2.3
+# (Hiroto, 2025/11/06) ver1.4: Add --odir_ddpack and odir_npz options| Update ddpacktrigger_ver1.3.py >> ver1.4, auto_beamform_FUSHAN_fix_ver2.1.py >> ver2.2 |.  auto_beamform_FUSHAN_fix_ddpack_ver2.3.py >> ver2.4
 
 import subprocess
 import argparse
@@ -15,7 +16,7 @@ from datetime import datetime
 # ============================================================
 parser = argparse.ArgumentParser(
     prog="auto_pipeline.py",
-    usage="%(prog)s csvfile FILE --tstart TSTART --tend TEND [--station STATION] [--dry-run]",
+    usage="%(prog)s csvfile FILE --tstart TSTART --tend TEND [--odir_ddpack] [--odir_npz] [--station STATION] [--dry-run]",
     description=(
         "Run the full event processing pipeline in sequence:\n"
         "1. link_event_filesFUSHAN.py\n"
@@ -31,6 +32,8 @@ parser = argparse.ArgumentParser(
 parser.add_argument("csvfile", help="CSV file containing event list")
 parser.add_argument("--tstart", required=True, help="Start time in UTC (format: 'YYYY-MM-DD HH:MM:SS')")
 parser.add_argument("--tend", required=True, help="End time in UTC (format: 'YYYY-MM-DD HH:MM:SS')")
+parser.add_argument("--odir_ddpack", type=str, default=".", help="Output directory for .ddpack")
+parser.add_argument("--odir_npz", type=str, default=".", help="Output directory for .npz")
 parser.add_argument("--station", default="Fushan", help="Station name (default: Fushan)")
 parser.add_argument("--skip-ddpack", action="store_true", help="Skip ddpack process")
 parser.add_argument("--dry-run", action="store_true", help="Show commands without executing")
@@ -81,17 +84,19 @@ pipeline = [
         args.csvfile, "--tstart", args.tstart, "--tend", args.tend
     ],
     [
-        "python", "ddpacktrigger_ver1.3.py",
+        "python", "ddpacktrigger_ver1.4.py",
         args.csvfile, "--tstart", args.tstart, "--tend", args.tend,
-        "--station", args.station
+        "--odir", args.odir_ddpack, "--station", args.station
     ],
     [
-        "python", "auto_beamform_FUSHAN_fix_ver2.1.py",
+        "python", "auto_beamform_FUSHAN_fix_ver2.2.py",
         args.csvfile, "--tstart", args.tstart, "--tend", args.tend,
+        "--odir", args.odir_npz
     ],
     [
-        "python", "auto_beamform_FUSHAN_fix_ddpack_ver2.3.py",
+        "python", "auto_beamform_FUSHAN_fix_ddpack_ver2.4.py",
         args.csvfile, "--tstart", args.tstart, "--tend", args.tend,
+        "--indir", args.odir_ddpack, "--odir", args.odir_npz
     ]
 ]
 

@@ -2,6 +2,7 @@
 
 # (Hiroto, 2025/10/30) ver2.0: [Revise] Improved version with --tstart and --tend for operational use
 # (Hiroto, 2025/11/02) ver2.1: [Revise] Check whether the directories or files exist 
+# (Hiroto, 2025/11/06) ver2.2: [Revise] Add an --odir option and define a directory (odir) to save .npz
 
 ####  import necessary Modules ##########
 
@@ -122,6 +123,8 @@ parser.add_argument("--tstart", type=str, default=None,
                     help="Start time in format 'YYYY-MM-DDTHH:MM:SS' (UTC)")
 parser.add_argument("--tend", type=str, default=None,
                     help="End time in format 'YYYY-MM-DDTHH:MM:SS' (UTC)")
+parser.add_argument("--odir", type=str, default=".",
+                    help="Output directory for .npz")
 # parser.add_argument("--station", type=str, default="Fushan",
 #                     help="Specify station name to filter events (e.g., BURSTT11)")
 
@@ -192,7 +195,8 @@ for idx, row in df.iterrows():
     #cal2_dir = '/home/sdutta/fushan/cal_20250820_033210Z.check'  ####### defining delay calibration #####
     #cal2_dir = '/home/sdutta/fushan/cal_20250901_031906Z.check'  ####### defining delay calibration #####
     #cal2_dir = '/home/sdutta/fushan/cal_20250917_032613Z.check'  ####### defining delay calibration #####
-    cal2_dir = 'cal_20250917_032613Z.check'  ####### defining delay calibration #####
+    # cal2_dir = 'cal_20250917_032613Z.check'  ####### defining delay calibration #####
+    cal2_dir = 'cal_20251017_053050Z.check'  ####### defining delay calibration #####
 
     #[sdutta@burstt11 calibration]$/data/kylin/241212_new_bf256/calibration/2nd_cal_2509171126/cal_20250917_032613Z.check
 
@@ -519,7 +523,8 @@ for idx, row in df.iterrows():
     # === save dedispersed baseband ===
     ep0 = ep_event - secWin # begin epoch of the dedispersed spec, at 400MHz
     dd_time = np.arange(pix_win)*timeFrame # time offset of each frame
-    out_name = 'baseband_beamform_dedisperse_%s.npz'%(ev_name,)
+    # out_name = 'baseband_beamform_dedisperse_%s.npz'%(ev_name,)
+    out_name = '%s/baseband_beamform_dedisperse_%s.npz'%(args.odir, ev_name)
     np.savez(out_name, freq=freq, ep0=ep0, dd_time=dd_time, dd_spec=dd_spec, ep_event=ep_event, DM=DM, beamid_x=beamid_x, beamid_y=beamid_y)
     
     
