@@ -4,7 +4,8 @@
 # (Hiroto, 2025/10/21) ver1.1: [Debug] loadPackedBatchMmap(); shape=(nPack,) >> (bpp*nPack,)
 # (Hiroto, 2025/10/22) ver1.2: [Revise] Add station for unique parameters 
 # (Hiroto, 2025/10/30) ver1.3: [Revise] Improved version with --tstart and --tend for operational use
-# (Hiroto, 2025/11/06) ver2.4: [Revise] Add an --odir option and define a directory (odir) to save .ddpack | Add fout = os.path.join(args.odir, fout) in make_ddpack_filenames | Add os.makedirs(odir, exist_ok=True)
+# (Hiroto, 2025/11/06) ver1.4: [Revise] Add an --odir option and define a directory (odir) to save .ddpack | Add fout = os.path.join(args.odir, fout) in make_ddpack_filenames | Add os.makedirs(odir, exist_ok=True)
+# (Hiroto, 2025/11/28) ver1.5: [Revise] Skip corrupted data
 
 ####  import necessary Modules ##########
 import sys, os, os.path, time, re
@@ -433,6 +434,11 @@ for idx, row in df.iterrows():
             continue
 ############################
         packMax = (sz - byteMeta) // bytePack
+
+        # Check the "r" permission; Corrupted data doesn't have permission to read
+        if not os.access(fbin, os.R_OK):
+            print(f"[WARNING] Cannot read file (no permission): {fbin}")
+            continue
     
         with open(fbin, 'rb') as f:
             mt = f.read(64)

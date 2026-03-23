@@ -5,6 +5,7 @@
 # (Hiroto, 2025/11/02) ver1.2: Update auto_beamform_FUSHAN_fix*ver2.0.py >> ver2.1
 # (Hiroto, 2025/11/03) ver1.3: Update auto_beamform_FUSHAN_fix_ddpack*ver2.1.py >> ver2.3
 # (Hiroto, 2025/11/06) ver1.4: Add --odir_ddpack and odir_npz options| Update ddpacktrigger_ver1.3.py >> ver1.4, auto_beamform_FUSHAN_fix_ver2.1.py >> ver2.2 |.  auto_beamform_FUSHAN_fix_ddpack_ver2.3.py >> ver2.4
+# (Hiroto, 2025/11/28) ver1.5: [Revise] Update ddpack*ver1.4.py >> ver1.5
 
 import subprocess
 import argparse
@@ -84,7 +85,7 @@ pipeline = [
         args.csvfile, "--tstart", args.tstart, "--tend", args.tend
     ],
     [
-        "python", "ddpacktrigger_ver1.4.py",
+        "python", "ddpacktrigger_ver1.5.py",
         args.csvfile, "--tstart", args.tstart, "--tend", args.tend,
         "--odir", args.odir_ddpack, "--station", args.station
     ],
