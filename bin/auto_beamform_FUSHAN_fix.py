@@ -7,6 +7,7 @@
 # (Hiroto, 2025/12/29) ver3.0: [Modify] freq_ref=400MHz >> 300MHz | flim=[400,800] >> [300,700] | [Debug] if (p2 > packMax):p2 = packMax
 # (Hiroto, 2026/01/29) ver3.1: [Revise] p1 < 0 >> set to p1=0 | p2 < 0 >> skip this file | lamb0, freq_bsep=400 now (originally using freq_ref=300)
 #                              [Debug]  The presence of NaN values corrupted the SNR calculation results: np.mean() & np.std() >> np.nanmean() & np.nanstd()
+# (Hiroto, 2026/03/23) ver4.0: [Modify] Optimized the 2nd beamforming by phase calibration with solution_2ndCal.npz
 
 ####  import necessary Modules ##########
 
@@ -88,7 +89,7 @@ timeFrame = nChan/BW # seconds per frame
 
 flim = [300., 700.] # MHz
 freq = np.linspace(flim[0], flim[1], nChan, endpoint=False)
-freq_ref = 300. # bonsai trigger event time reference freq (MHz)
+freq_ref  = 300. # bonsai trigger event time reference freq (MHz)
 freq_bsep = 400. # a reference freq used to compute beam spacing
 
 sepX = 1.0 # antenna separation in X, meters
@@ -130,8 +131,8 @@ cal_files = glob(os.path.join(cal_dir, "cal_*.check"))
 parser = argparse.ArgumentParser(
     prog="auto_beamform_FUSHAN_fix.py",
     usage="%(prog)s csvfile [--tstart TSTART --tend TEND --station STATION]",
-    description="Read triggered baseband data and execute 2nd beamforming with a Chih-Yi's Fast Assenbly Code",
-    epilog="Example:\n  python %(prog)s triggers.csv --tstart '2025-10-01 00:00:00' --tend '2025-10-01 01:00:00' --station Fushan",
+    description="Read triggered baseband data and execute 2nd beamforming with a Chih-Yi's Fast Assenbly Code & Kyle's 2nd-bf optimization",
+    epilog="Example:\n  python %(prog)s triggers.csv --tstart '2025-10-01 00:00:00' --tend '2025-10-01 01:00:00' --station Fushan --dcal",
     formatter_class=argparse.RawTextHelpFormatter
 )
 parser.add_argument("csvfile", help="CSV file containing event list")
@@ -141,6 +142,9 @@ parser.add_argument("--tend", type=str, default=None,
                     help="End time in format 'YYYY-MM-DDTHH:MM:SS' (UTC)")
 parser.add_argument("--odir", type=str, default=".",
                     help="Output directory for .npz")
+parser.add_argument("--dcal", action="store_true",
+                    help="Use optimized second beamforming calibration: Read 2nd_cal information from solution_2ndCal.npz file")
+
 # parser.add_argument("--station", type=str, default="Fushan",
 #                     help="Specify station name to filter events (e.g., BURSTT11)")
 
@@ -203,16 +207,7 @@ for idx, row in df.iterrows():
     ep_event = dt_event.to_value('unix')
     DM = row['DM']
     beamid = row['BeamID']; beamid_x = beamid%16; beamid_y = beamid//16
-    #beamid_x = row['beam_x']
-    #beamid_y = row['beam_y']
-    #print(f"{row['EventID']} | {row['Timestamp']} | DM={row['DM']:.3f} | Beam=({row['beam_x']},{row['beam_y']})")
     print(f"{row['EventID']} | {row['Timestamp']} | DM={row['DM']:.3f} | Beam=({beamid_x},{beamid_y})")
-    #cal2_dir = '/home/sdutta/fushan/cal_20250709_023000Z.check'  ####### defining delay calibration #####
-    #cal2_dir = '/home/sdutta/fushan/cal_20250820_033210Z.check'  ####### defining delay calibration #####
-    #cal2_dir = '/home/sdutta/fushan/cal_20250901_031906Z.check'  ####### defining delay calibration #####
-    #cal2_dir = '/home/sdutta/fushan/cal_20250917_032613Z.check'  ####### defining delay calibration #####
-    # cal2_dir = 'cal_20250917_032613Z.check'  ####### defining delay calibration #####
-    # cal2_dir = 'cal_20251017_053050Z.check'  ####### defining delay calibration #####
 
     # Automatically select a sutable calibration file
     candidates = []
@@ -227,7 +222,7 @@ for idx, row in df.iterrows():
     if not candidates:
         raise RuntimeError("No calibration files before this observation")
 
-    # 最も直近（過去側）
+    # Pick up the latest calibration file
     cal2_time, cal2_dir = max(candidates, key=lambda x: x[0].unix)
 
     print(f"Selected calibration: {cal2_dir}")
@@ -241,7 +236,7 @@ for idx, row in df.iterrows():
 #        os.chdir(ev_name)
 
 
-##########33
+############
 
     files = load_bin_files(idir)
     nFile = len(files)
@@ -250,31 +245,69 @@ for idx, row in df.iterrows():
     if nFile == 0:
         print("[WARN] No files to process — skipping this directory.")
         continue
-    
-    
-    def get_2nd_cal(ifile, freq):
-        '''
-        load the delay calibration between FPGAs
-        ifile lists the delay of each FPGA in ns
-        freq is an array (length nChan) in MHz
-    
-        return
-        '''
+
+    # (Hiroto, 2026/03/23) Apply the Kyle's 2nd-bf optimization
+    def get_2nd_cal(cal2_dir, freq):
+        """
+        Load second-stage calibration.
+
+        Parameters
+        ----------
+        cal2_dir : str
+        freq : ndarray (nChan,) in MHz
+
+        Returns ::ndarray (1, nRow, nChan)
+        -------
+        Optimized 2nd-bf phase calibration     : phiCorr & normCorr 
+        or
+        Not-optimized 2nd-bf phase calibration : phiCorr 
+        """
+
         nRow = 16
-        nChan = len(freq)
-    
-        with open(ifile, 'r') as fh:
-            tmp = fh.readline() # skip the first line
-            line = fh.readline()
-            tmp = line.split("'")[1].split()
-            tau = np.array([float(x) for x in tmp])
-            print('delays (ns):', tau)
-    
-        cal = np.exp(2.j*np.pi*tau.reshape(-1,1)*freq.reshape(1,-1)*1e-3)
-    
-        return cal
-    
-    cal2 = get_2nd_cal('%s/ant_delay_correct.txt'%cal2_dir, freq)
+        nChan = freq.size
+
+        fcal1 = os.path.join(cal2_dir, "ant_delay_correct.txt")
+        fcal2 = os.path.join(cal2_dir, "solution_2ndCal.npz")
+
+        # -----------------------------
+        # [1] optimized calibration (npz)
+        # -----------------------------
+        if os.path.isfile(fcal2) and args.dcal:
+            with np.load(fcal2) as tmp:
+                if {'normCorr', 'phiCorr'} <= tmp.keys():
+                    return tmp['normCorr'], tmp['phiCorr']
+                # ---- compute calibration ----
+                V       = tmp['tau_i'].T        # (nRow, nChan)
+                auto    = tmp['auto2']          # (nRow, nChan)
+                wt_SEFD = tmp['wt_SEFD']        # (nRow,)            
+            # ---- vectorized operations ----
+            phase = np.exp(-1j * np.angle(V))
+            amp   = (np.abs(V) / 0.25) / auto
+            # ---- broadcasting reshape ----
+            phase = phase[np.newaxis, :, :]
+            amp   = amp[np.newaxis, :, :]
+            wt    = wt_SEFD[np.newaxis, :, np.newaxis]
+
+            normCorr = amp * wt
+            phiCorr  = phase
+            return normCorr * phiCorr
+        # -----------------------------
+        # [2] legacy calibration (text)
+        # -----------------------------
+        with open(fcal1, 'r') as fh:
+            next(fh)  # skip header
+            line = next(fh)
+        # ---- fast parsing ----
+        tau = np.fromstring(line.split("'")[1], sep=' ')
+        print("delays (ns):", tau)
+        # ---- vectorized phase calculation ----
+        # tau: (nRow,) -> (nRow,1)
+        # freq: (nChan,) -> (1,nChan)
+        phiCorr  = np.exp(2j * np.pi * tau[:, None] * freq[None, :] * 1e-3).reshape(1,nRow,nChan)
+        normCorr = np.ones_like(phiCorr)
+        return phiCorr * normCorr
+
+    cal2 = get_2nd_cal(cal2_dir, freq)
     
     ###### Simulated Pulse ########
     def pulse(DM, ep_event, freq, freq_ref):
@@ -310,7 +343,7 @@ for idx, row in df.iterrows():
     
     # shape = (nYBeam, nRow, nChan)
     BFMY = np.exp(2.j*np.pi*pos2.reshape(1,nRow,1)*sin_theta_Y.reshape(nYBeam,1,1)/lamb.reshape(1,1,nChan))
-    BFMY = BFMY * cal2.reshape(1,nRow,nChan)
+    BFMY = BFMY * cal2
     ##########
     
     ################################
